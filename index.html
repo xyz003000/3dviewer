@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="color-scheme" content="dark"/>
+<title>三维模型查看器</title>
+<link rel="stylesheet" href="./style.css"/>
+<script type="importmap">
+{
+  "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 22V12"/><path d="m21 7-9 5-9-5"/></svg>
+    <span class="brand-name">三维模型查看器</span>
+    <span class="chip">Three.js r160</span>
+  </div>
+  <div class="sep"></div>
+  <button id="btn-open" class="btn primary" title="打开本地模型文件">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    打开模型
+  </button>
+  <div class="dropdown" id="sample-dd">
+    <button id="btn-sample" class="btn" title="选择示例模型">
+      选择模型
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="menu" id="sample-menu"></div>
+  </div>
+  <div class="sep"></div>
+  <button id="btn-outline" class="btn iconbtn tog" title="轮廓线（O）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/></svg>
+  </button>
+  <button id="btn-axes" class="btn iconbtn tog active" title="坐标轴（X）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 20V6.5"/><path d="M6.5 20H20"/><path d="m6.5 3.2-2.4 3.6h4.8z" fill="currentColor" stroke="none"/><path d="m22.3 20-3.6 2.4v-4.8z" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <button id="btn-grid" class="btn iconbtn tog active" title="地面网格（G）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/></svg>
+  </button>
+  <div class="sep"></div>
+  <div class="seg" id="shade-seg" title="查看模式">
+    <button data-shade="shaded" class="active">实体</button>
+    <button data-shade="wire">线框</button>
+    <button data-shade="hybrid">混合</button>
+    <button data-shade="normal">法线</button>
+  </div>
+  <div class="seg" id="cam-seg" title="相机类型">
+    <button data-cam="ortho" class="active">正交</button>
+    <button data-cam="persp">透视</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="btn-shot" class="btn iconbtn" title="保存 PNG 截图">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>
+  </button>
+  <button id="btn-fs" class="btn iconbtn" title="全屏">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+  </button>
+  <button id="btn-panel" class="btn iconbtn" title="设置面板">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6M9 8h6m2 8h6"/></svg>
+  </button>
+</header>
+
+<div id="viewport"></div>
+<div id="vig"></div>
+
+<aside id="panel">
+  <div class="sec">
+    <div class="sec-title">视图</div>
+    <div class="btn-row">
+      <button id="btn-fit" class="btn">适配模型</button>
+      <button id="btn-reset" class="btn">复位视角</button>
+    </div>
+    <div class="viewgrid" id="viewgrid">
+      <button data-view="front">前</button>
+      <button data-view="back">后</button>
+      <button data-view="left">左</button>
+      <button data-view="right">右</button>
+      <button data-view="top">顶</button>
+      <button data-view="bottom">底</button>
+      <button data-view="iso" class="span2">等轴测</button>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-title">模型旋转</div>
+    <div class="btn-row">
+      <button class="btn rotbtn" data-ax="x" title="绕 X 轴旋转">X</button>
+      <button class="btn rotbtn" data-ax="y" title="绕 Y 轴旋转">Y</button>
+      <button class="btn rotbtn" data-ax="z" title="绕 Z 轴旋转">Z</button>
+      <button class="btn rotbtn" id="btn-rot-stop" title="停止旋转">停止</button>
+    </div>
+    <label class="row"><span>速度 <b id="spd-val">30°/s</b></span><input id="rng-rot" type="range" min="5" max="90" step="1" value="30"/></label>
+    <div class="btn-row">
+      <button id="btn-model-reset" class="btn" title="恢复模型的原始位置与角度">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.4"/><path d="M3.5 3.6v4.8h4.8"/></svg>
+        模型复位
+      </button>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-title">显示</div>
+    <label class="row"><span>背景亮度 <b id="bri-val">50%</b></span><input id="rng-bri" type="range" min="0" max="100" step="1" value="50"/></label>
+    <label class="row"><span>模型亮度 <b id="mdl-bri-val">1.00×</b></span><input id="rng-mdl-bri" type="range" min="0" max="200" step="1" value="100"/></label>
+    <label class="row hide" id="row-anim" style="margin-top:9px"><span>播放动画</span><span class="switch"><input id="chk-anim" type="checkbox" checked/><i></i></span></label>
+  </div>
+  <div class="sec">
+    <div class="sec-title">快捷键</div>
+    <div class="keys">
+      F 适配 · R 复位视角 · C 相机 · O 轮廓线<br/>
+      G 网格 · X 坐标轴 · 空格 Y轴旋转<br/>
+      1-7 视角 · 双击 聚焦点位
+    </div>
+  </div>
+</aside>
+
+<div id="gizmo"></div>
+
+<footer id="status">
+  <div class="sc">
+    <span id="chip-file">—</span>
+    <span id="chip-stats"></span>
+  </div>
+  <div class="sc" id="chip-keys">F 适配 · R 复位 · O 轮廓 · G 网格 · 空格 旋转 · 双击聚焦</div>
+</footer>
+
+<div id="hint"><b>拖放模型文件</b>到窗口任意位置，或点击「打开模型」 — 支持 GLB / GLTF / OBJ / FBX / STL / PLY（GLTF 请连同 .bin 与贴图一并选择）</div>
+
+<div id="drop"><div class="box">松开以载入模型文件</div></div>
+
+<div id="load">
+  <div class="load-card">
+    <div class="spin"></div>
+    <div id="load-name">载入中…</div>
+    <div class="bar indet" id="load-bar"><i></i></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<input id="file-input" type="file" multiple accept=".glb,.gltf,.obj,.mtl,.fbx,.stl,.ply,.bin,.png,.jpg,.jpeg,.webp,.bmp" hidden/>
+
+<!-- ================================================================
+     本地示例模型配置（在此自行修改 / 增删，无需改动其它文件）
+     url 为相对本 HTML 文件的路径，或任意可访问的 URL；
+     支持 glb / gltf / obj / fbx / stl / ply。例如：
+       { name: '机械臂', url: './demo.glb' },
+     builtin: true 表示使用内置示例（不依赖任何文件）
+     ================================================================ -->
+<script>
+window.SAMPLE_MODELS = [
+  { name: '三叶结（内置）', builtin: true },
+  { name: '检查井',        url: './glb/manhole.glb' },
+  { name: '箱涵',        url: './glb/box-culvert.glb' },
+  { name: '夹子',      url: './glb/jiazi.glb' },
+  { name: '楼梯1',      url: './glb/stair1.glb' },
+  { name: '楼梯2',      url: './glb/stair2.glb' },
+  { name: '树（动态模型）',      url: './glb/tree.glb' },
+  { name: '20260912王坡',      url: './glb/20260912wangpo.glb' },
+];
+
+/* ===== 初始载入模型（页面打开时显示的模型） =====
+ * url  : 相对本 HTML 的路径或完整 URL（glb / gltf / obj / fbx / stl / ply 均可）
+ * name : 显示名称，可省略（默认取文件名）
+ * 设为 null 或删除本行 → 恢复为内置三叶结
+ * 若该 url 与上面 SAMPLE_MODELS 中某项完全一致，下拉菜单会自动高亮它
+ * window.INITIAL_MODEL = { url: './glb/manhole.glb', name: '检查井' };
+ */
+
+</script>
+
+<script type="module" src="./script.js"></script>
+</body>
+</html>
