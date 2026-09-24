@@ -909,7 +909,8 @@ function loop(){
 
 resize();
 syncTopbarH();
-applyBrightness(.75);
+// applyBrightness(.75);
+applyBrightness(parseInt($('rng-bri').value, 10) / 100);   /* ← 注释掉上一行applyBrightness(0.75)，改为直接读取滑块的 value="80"。 */
 setOutline(true);          /* ← 新增这一行：轮廓线默认开启 */
 buildSampleMenu();
 loadBuiltinSample();       /* 或你配置的 INITIAL_MODEL 异步载入，均不受影响 */
