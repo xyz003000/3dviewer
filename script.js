@@ -909,7 +909,7 @@ function loop(){
 /* ================= 启动 ================= */
 resize();
 syncTopbarH();
-applyBrightness(.5);
+applyBrightness(.75);
 setOutline(true);          /* ← 新增这一行：轮廓线默认开启 */
 buildSampleMenu();
 loadBuiltinSample();       /* 或你配置的 INITIAL_MODEL 异步载入，均不受影响 */
