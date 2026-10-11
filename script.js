@@ -9,6 +9,8 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
+
 
 /* 示例模型配置来自 index.html 的 window.SAMPLE_MODELS（在那里修改即可）；
  * 若配置缺失则退回内置示例，保证页面仍可用。 */
@@ -82,12 +84,6 @@ ortho.position.set(3, 2.6, 3); ortho.zoom = 1;
 persp.position.copy(ortho.position);
 updateOrtho();
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = .08;
-controls.zoomToCursor = true;
-controls.screenSpacePanning = true;
-controls.addEventListener('start', () => cancelCamAnim());
-
 /* ================= 状态 ================= */
 let model = null, modelRadius = 1, currentName = '—';
 const modelCenter = new THREE.Vector3();
@@ -98,6 +94,63 @@ let shadeMode = 'shaded';
 let gridOn = true, axesOn = true, outlineOn = false;
 let rotAxis = null, rotSpeed = 30;   // deg/s
 let modelBrightness = 1;             // 模型本身亮度（1 = 原始）
+
+let controls;
+let freeRotate = false;
+
+function applyControlLimits(c){
+  c.minDistance = modelRadius * .03;
+  c.maxDistance = modelRadius * 60;
+}
+
+function wireControls(c){
+  applyControlLimits(c);
+  c.addEventListener('start', () => cancelCamAnim());
+  return c;
+}
+
+function createOrbitControls(cam, target){
+  const c = new OrbitControls(cam, renderer.domElement);
+  c.enableDamping = true;
+  c.dampingFactor = .08;
+  c.zoomToCursor = true;
+  c.screenSpacePanning = true;
+  if (target) c.target.copy(target);
+  return wireControls(c);
+}
+
+function createTrackballControls(cam, target){
+  const c = new TrackballControls(cam, renderer.domElement);
+  c.staticMoving = false;
+  c.dynamicDampingFactor = .08;
+  c.rotateSpeed = 1.6;
+  c.zoomSpeed = 1.2;
+  c.panSpeed = .6;
+  c.keys = ['', '', ''];
+  if (target) c.target.copy(target);
+  c.handleResize();
+  return wireControls(c);
+}
+
+function setFreeRotate(on){
+  on = !!on;
+  if (on === freeRotate && controls) return;
+  const target = controls ? controls.target.clone() : new THREE.Vector3();
+  if (controls) controls.dispose();
+  freeRotate = on;
+  if (on){
+    controls = createTrackballControls(camera, target);
+  } else {
+    camera.up.set(0, 1, 0);
+    camera.lookAt(target);
+    controls = createOrbitControls(camera, target);
+  }
+  controls.update();
+  const chk = $('chk-free-rot');
+  if (chk) chk.checked = on;
+}
+
+setFreeRotate(false);
 
 /* ================= 共享材质 / 着色模式 ================= */
 const wireMat = new THREE.MeshBasicMaterial({ wireframe: true, color: 0x9db8e8 });
@@ -296,8 +349,7 @@ function setModel(object, name){
 
   buildGrid(modelRadius, modelCenter, modelBox.min.y);
   buildAxes(modelRadius, new THREE.Vector3(modelCenter.x, modelBox.min.y, modelCenter.z));
-  controls.minDistance = modelRadius * .03;
-  controls.maxDistance = modelRadius * 60;
+  applyControlLimits(controls);
   const clips = object.animations || [];
   if (clips.length){
     mixer = new THREE.AnimationMixer(object);
@@ -371,6 +423,8 @@ function animateCam(pos, tgt, opts = {}, dur = 450, done = null){
   camAnim = {
     p0: camera.position.clone(), t0: controls.target.clone(),
     p1: pos.clone(), t1: tgt.clone(),
+    u0: camera.up.clone(), u1: (opts.up ? opts.up.clone() : camera.up.clone()).normalize(),
+    syncUp: !!(opts.up || freeRotate),
     z0: ortho.zoom, z1: opts.zoom ?? ortho.zoom,
     h0: orthoHalf, h1: opts.half ?? orthoHalf,
     start: performance.now(), dur, done
@@ -383,6 +437,10 @@ function stepAnim(now){
   const e = easeInOut(k);
   camera.position.lerpVectors(camAnim.p0, camAnim.p1, e);
   controls.target.lerpVectors(camAnim.t0, camAnim.t1, e);
+  if (camAnim.syncUp){
+    camera.up.lerpVectors(camAnim.u0, camAnim.u1, e).normalize();
+    camera.lookAt(controls.target);
+  }
   if (camera === ortho){
     orthoHalf = camAnim.h0 + (camAnim.h1 - camAnim.h0) * e;
     ortho.zoom = camAnim.z0 + (camAnim.z1 - camAnim.z0) * e;
@@ -403,19 +461,27 @@ function fitView(animate = true, dir){
   d.normalize();
   const pos = C.clone().addScaledVector(d, R * 3);
   const opts = { half: R * 1.15, zoom: 1 };
+  if (freeRotate && dir) opts.up = new THREE.Vector3(0, 1, 0);
   if (animate) animateCam(pos, C, opts, 460, updateClipPlanes);
   else {
     camera.position.copy(pos); controls.target.copy(C);
+    if (opts.up){ camera.up.copy(opts.up); camera.lookAt(C); }
     orthoHalf = opts.half; ortho.zoom = 1; updateOrtho();
     updateClipPlanes();
   }
+}
+function upForView(name){
+  if (name === 'top') return new THREE.Vector3(0, 0, -1);
+  if (name === 'bottom') return new THREE.Vector3(0, 0, 1);
+  return new THREE.Vector3(0, 1, 0);
 }
 function snapView(name){
   if (!model) return;
   const v = new THREE.Vector3(...VIEW_DIRS[name]).normalize();
   const C = controls.target.clone();
   const dist = Math.max(camera.position.distanceTo(C), modelRadius * .5);
-  animateCam(C.clone().addScaledVector(v, dist), C);
+  const opts = freeRotate ? { up: upForView(name) } : {};
+  animateCam(C.clone().addScaledVector(v, dist), C, opts);
 }
 function syncCamSeg(){
   document.querySelectorAll('#cam-seg button').forEach(b =>
@@ -440,6 +506,7 @@ function setCameraMode(mode){
   }
   camMode = mode;
   controls.object = camera;
+  if (controls.handleResize) controls.handleResize();
   controls.update();
   syncCamSeg();
 }
@@ -781,6 +848,7 @@ $('rng-mdl-bri').oninput = e => {
   applyModelBrightness(modelBrightness);
 };
 $('chk-anim').onchange = e => { animPlaying = e.target.checked; };
+$('chk-free-rot').onchange = e => setFreeRotate(e.target.checked);
 
 $('btn-fit').onclick = () => fitView(true);
 $('btn-reset').onclick = () => fitView(true, ISODIR);
@@ -872,6 +940,7 @@ function resize(){
   const r = $('gizmo').getBoundingClientRect();
   const v = vp.getBoundingClientRect();
   gizmoRect = { x: r.left - v.left, y: H - (r.bottom - v.top), w: r.width, h: r.height };
+  if (controls && controls.handleResize) controls.handleResize();
 }
 function syncTopbarH(){
   document.documentElement.style.setProperty('--tbh', $('topbar').offsetHeight + 'px');
@@ -909,8 +978,8 @@ function loop(){
 
 resize();
 syncTopbarH();
-// applyBrightness(.75);
-applyBrightness(parseInt($('rng-bri').value, 10) / 100);   /* ← 注释掉上一行applyBrightness(0.75)，改为直接读取滑块的 value="80"。 */
+/* applyBrightness(.8); */
+applyBrightness(parseInt($('rng-bri').value, 10) / 100);          /* ← 把启动行改为直接读取滑块的 value，这样 HTML 中的 value="80" 就自动成为唯一数据源 */
 setOutline(true);          /* ← 新增这一行：轮廓线默认开启 */
 buildSampleMenu();
 loadBuiltinSample();       /* 或你配置的 INITIAL_MODEL 异步载入，均不受影响 */

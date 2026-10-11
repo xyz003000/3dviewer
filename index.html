@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="color-scheme" content="dark"/>
 <title>三维模型查看器</title>
-<link rel="icon" href="favicon.ico" type="image/x-icon">
 <link rel="stylesheet" href="./style.css"/>
 <script type="importmap">
 {
@@ -87,6 +86,10 @@
       <button data-view="bottom">底</button>
       <button data-view="iso" class="span2">等轴测</button>
     </div>
+    <label class="row" title="关闭时相机保持世界 Y 朝上（轨道旋转，越过极点会卡住）；开启后可任意翻转">
+      <span>自由旋转</span>
+      <span class="switch"><input id="chk-free-rot" type="checkbox"/><i></i></span>
+    </label>
   </div>
   <div class="sec">
     <div class="sec-title">模型旋转</div>
@@ -106,7 +109,7 @@
   </div>
   <div class="sec">
     <div class="sec-title">显示</div>
-    <label class="row"><span>背景亮度 <b id="bri-val">75%</b></span><input id="rng-bri" type="range" min="0" max="100" step="1" value="75"/></label>
+    <label class="row"><span>背景亮度 <b id="bri-val">60%</b></span><input id="rng-bri" type="range" min="0" max="100" step="1" value="60"/></label>
     <label class="row"><span>模型亮度 <b id="mdl-bri-val">1.00×</b></span><input id="rng-mdl-bri" type="range" min="0" max="200" step="1" value="100"/></label>
     <label class="row hide" id="row-anim" style="margin-top:9px"><span>播放动画</span><span class="switch"><input id="chk-anim" type="checkbox" checked/><i></i></span></label>
   </div>
@@ -162,7 +165,7 @@ window.SAMPLE_MODELS = [
   { name: '楼梯1',      url: './glb/stair1.glb' },
   { name: '楼梯2',      url: './glb/stair2.glb' },
   { name: '树（动态模型）',      url: './glb/tree.glb' },
-  { name: '躺椅（13.4M）',      url: './glb/chaise.glb' },
+  { name: '副溜槽',      url: './glb/fuliucao.glb' },
 ];
 
 /* ===== 初始载入模型（页面打开时显示的模型） =====
