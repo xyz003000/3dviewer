@@ -1005,3 +1005,28 @@ loop();
 
 if (innerWidth < 760) document.body.classList.add('panel-off');
 loop();
+
+/* ===== 双面渲染 ===== */
+let doubleSideOn = false;   // 双面渲染开关，默认关闭
+
+// 把当前 doubleSideOn 状态应用到模型的所有材质
+function applyDoubleSide(root){
+  if (!root) return;
+  root.traverse(o => {
+    if (!o.isMesh || o.userData.isOverlay) return;   // 只处理网格，跳过叠加层
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats){
+      if (!m || m.userData.isShared) continue;       // 跳过空槽位和共享材质
+      if (m.userData.__origSide === undefined) m.userData.__origSide = m.side; // 首次记录原始side
+      m.side = doubleSideOn ? THREE.DoubleSide : m.userData.__origSide;
+      m.needsUpdate = true;
+    }
+  });
+}
+
+$('chk-double-side').addEventListener('change', e => {
+  doubleSideOn = e.target.checked;
+  if (model) applyDoubleSide(model);
+});
+$('chk-double-side').checked = doubleSideOn;   // ← 新增：页面加载时归位，防止浏览器恢复勾选状态
+// 另：在模型加载回调里调用 applyDoubleSide(model);
