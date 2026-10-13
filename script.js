@@ -1006,27 +1006,38 @@ loop();
 if (innerWidth < 760) document.body.classList.add('panel-off');
 loop();
 
-/* ===== 双面渲染 ===== */
-let doubleSideOn = false;   // 双面渲染开关，默认关闭
-
-// 把当前 doubleSideOn 状态应用到模型的所有材质
+/* ===== 双面渲染（按钮即状态源）===== */
 function applyDoubleSide(root){
   if (!root) return;
+  const on = $('chk-double-side').checked;   // ← 状态从按钮读，无变量
   root.traverse(o => {
-    if (!o.isMesh || o.userData.isOverlay) return;   // 只处理网格，跳过叠加层
+    if (!o.isMesh || o.userData.isOverlay) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats){
-      if (!m || m.userData.isShared) continue;       // 跳过空槽位和共享材质
-      if (m.userData.__origSide === undefined) m.userData.__origSide = m.side; // 首次记录原始side
-      m.side = doubleSideOn ? THREE.DoubleSide : m.userData.__origSide;
+      if (!m || m.userData.isShared) continue;
+      if (m.userData.__origSide === undefined) m.userData.__origSide = m.side;
+      m.side = on ? THREE.DoubleSide : m.userData.__origSide;
       m.needsUpdate = true;
     }
   });
 }
 
-$('chk-double-side').addEventListener('change', e => {
-  doubleSideOn = e.target.checked;
+// 用户拨动开关 → 立即投影到当前模型
+$('chk-double-side').addEventListener('change', () => {
   if (model) applyDoubleSide(model);
 });
-$('chk-double-side').checked = doubleSideOn;   // ← 新增：页面加载时归位，防止浏览器恢复勾选状态
-// 另：在模型加载回调里调用 applyDoubleSide(model);
+
+// 模型切换监视器：无条件调用，函数内部自己看按钮
+// 按钮关着时这次调用只做 __origSide 记录/还原，无副作用
+let __dsLastModel = null;
+(function __dsWatch(){
+  if (typeof model !== 'undefined' && model !== __dsLastModel){
+    __dsLastModel = model;
+    if (model) applyDoubleSide(model);
+  }
+  requestAnimationFrame(__dsWatch);
+})();
+
+// 页面加载时硬归位（写死 false，不依赖变量）
+$('chk-double-side').checked = false;
+
