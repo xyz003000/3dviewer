@@ -91,6 +91,10 @@
       <span>自由旋转</span>
       <span class="switch"><input id="chk-free-rot" type="checkbox"/><i></i></span>
     </label>
+    <label class="row" title="关闭时仅渲染正面（0 厚度平面从背面不可见）；开启后正反两面均渲染">
+      <span>双面渲染</span>
+      <span class="switch"><input id="chk-double-side" type="checkbox"/><i></i></span>
+    </label>
   </div>
   <div class="sec">
     <div class="sec-title">模型旋转</div>
@@ -166,6 +170,7 @@ window.SAMPLE_MODELS = [
   { name: '楼梯1',      url: './glb/stair1.glb' },
   { name: '楼梯2',      url: './glb/stair2.glb' },
   { name: '树（动态模型）',      url: './glb/tree.glb' },
+  { name: '半圆柱展开（单面）',      url: './glb/semicylinder.glb' },
   { name: '躺椅（13.4M）',      url: './glb/chaise.glb' },
 ];
 
