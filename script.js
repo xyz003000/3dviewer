@@ -358,6 +358,7 @@ function setModel(object, name){
   animPlaying = $('chk-anim').checked;
   $('row-anim').classList.toggle('hide', clips.length === 0);
   applyShading(shadeMode);
+  applyDoubleSide(object);   /* 按当前按钮状态投影到新模型（作用于 base 材质 origMaterial） */
   applyModelBrightness(modelBrightness);   /* 模型切换后沿用当前亮度滑块值 */
   currentName = name;
   $('chip-file').textContent = name;
@@ -982,7 +983,7 @@ syncTopbarH();
 applyBrightness(parseInt($('rng-bri').value, 10) / 100);          /* ← 把启动行改为直接读取滑块的 value，这样 HTML 中的 value="80" 就自动成为唯一数据源 */
 setOutline(true);          /* ← 新增这一行：轮廓线默认开启 */
 buildSampleMenu();
-loadBuiltinSample();       /* 或你配置的 INITIAL_MODEL 异步载入，均不受影响 */
+/* 不再同步 loadBuiltinSample()，统一交给下方 initLoad 决定初始模型，避免内置示例被连开两遍 */
 if (innerWidth < 760) document.body.classList.add('panel-off');
 loop();
 
@@ -1003,41 +1004,43 @@ loop();
   loadBuiltinSample();
 })();
 
-if (innerWidth < 760) document.body.classList.add('panel-off');
-loop();
+/* ===== 双面渲染：接入 setModel 链路 ===== */
 
-/* ===== 双面渲染（按钮即状态源）===== */
+/* 针对 GLB 内可能混入的 0 厚度平面：
+ * - 开关开启：正反两面均渲染（DoubleSide），薄片从背面也可见；
+ * - 开关关闭：回到该材质在 GLB 里的原始 side。
+ * 只作用在 base 材质(origMaterial)上，不受线框/法线模式的共享材质干扰；
+ * 每次加载都是全新材质实例，__origSide 首次记录即 GLB 真实原始值，无需清理。 */
 function applyDoubleSide(root){
   if (!root) return;
-  const on = $('chk-double-side').checked;   // ← 状态从按钮读，无变量
+  const on = $('chk-double-side').checked;   // 状态源就是按钮本身，无中间变量
+
   root.traverse(o => {
-    if (!o.isMesh || o.userData.isOverlay) return;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (!o.isMesh || (o.userData && o.userData.isOverlay)) return;
+
+    const base = o.userData.origMaterial;
+    const mats = Array.isArray(base) ? base : (base ? [base] : []);
     for (const m of mats){
-      if (!m || m.userData.isShared) continue;
-      if (m.userData.__origSide === undefined) m.userData.__origSide = m.side;
-      m.side = on ? THREE.DoubleSide : m.userData.__origSide;
-      m.needsUpdate = true;
+      if (!m || (m.userData && m.userData.isShared)) continue;
+
+      // 全新材质首次进入时记录 GLB 的真实原始 side（之后不再被覆盖）
+      if (m.userData.__origSide === undefined){
+        m.userData.__origSide = (m.side != null) ? m.side : THREE.FrontSide;
+      }
+
+      const next = on ? THREE.DoubleSide : m.userData.__origSide;
+      if (m.side !== next){
+        m.side = next;
+        m.needsUpdate = true;
+      }
     }
   });
 }
 
-// 用户拨动开关 → 立即投影到当前模型
+/* 开关拨动 → 立即作用于当前模型的 base 材质 */
 $('chk-double-side').addEventListener('change', () => {
   if (model) applyDoubleSide(model);
 });
 
-// 模型切换监视器：无条件调用，函数内部自己看按钮
-// 按钮关着时这次调用只做 __origSide 记录/还原，无副作用
-let __dsLastModel = null;
-(function __dsWatch(){
-  if (typeof model !== 'undefined' && model !== __dsLastModel){
-    __dsLastModel = model;
-    if (model) applyDoubleSide(model);
-  }
-  requestAnimationFrame(__dsWatch);
-})();
-
-// 页面加载时硬归位（写死 false，不依赖变量）
+/* 页面初始化时硬归位（写死 false，不依赖任何变量） */
 $('chk-double-side').checked = false;
-
