@@ -594,8 +594,15 @@ $('gizmo').addEventListener('pointermove', e => {
 });
 
 /* ================= 模型加载（本地文件与 URL 共用） ================= */
+/* ================= 模型加载（本地文件与 URL 共用） ================= */
+// 从 importmap 解析出 three/addons/ 对应的实际 URL，
+// 再拼上 Draco 解码器在 npm 包内的固定相对路径，
+// 之后升级 three 版本只需改 index.html 的 importmap，这里自动跟随。
+const addonsBase = import.meta.resolve('three/addons/loaders/DRACOLoader.js')
+  .slice(0, -'loaders/DRACOLoader.js'.length);
 const dracoLoader = new DRACOLoader()
-  .setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
+  .setDecoderPath(addonsBase + 'libs/draco/gltf/');
+
 const loadEl = $('load'), bar = $('load-bar'), barI = bar.querySelector('i');
 function showLoading(name){ $('load-name').textContent = name; bar.classList.add('indet'); barI.style.width = ''; loadEl.classList.add('on'); }
 function hideLoading(){ loadEl.classList.remove('on'); }
@@ -990,19 +997,42 @@ loop();
 
 /* 初始载入：优先 index.html 的 window.INITIAL_MODEL，
  * 未配置或载入失败（路径错误/文件缺失）时自动回退内置三叶结，页面不会空白。 */
+/* 初始载入：优先级 URL ?model= → index.html window.INITIAL_MODEL → 内置三叶结 */
 (async function initLoad(){
+
+  /* ===== 新增：支持 ?model= 参数打开 .glb 等模型 ===== */
+  const modelParam = new URLSearchParams(location.search).get('model');
+  if (modelParam){
+    let url;
+    try {
+      /* 关键：第二个参数传 location.href，让相对路径按"当前页面"解析
+       *  1.glb          → https://xyz003000.github.io/3dviewer/1.glb
+       *  ../123/1.glb   → https://xyz003000.github.io/123/1.glb
+       *  https://…      → 原样返回（绝对 URL 时 base 参数被忽略） */
+      url = new URL(modelParam, location.href).href;
+    } catch (e) {
+      url = modelParam;   /* 极端情况下兜底，原样传给加载器 */
+    }
+    /* 文件名作为显示名（去掉查询串与哈希） */
+    const name = decodeURIComponent((url.split('?')[0].split('#')[0].split('/').pop()) || 'URL 模型');
+    if (await loadUrlSample({ name, url })) return;   /* 成功即结束，不再走后续分支 */
+    /* 失败时 loadUrlSample 已弹过 toast，这里继续向下回退到内置模型，页面不会空白 */
+  }
+  /* ===== 新增结束 ===== */
+
   const cfg = window.INITIAL_MODEL;
   if (cfg && cfg.url){
-    curSample = SAMPLE_MODELS.findIndex(s => s.url === cfg.url);  /* 在列表中则高亮，否则 -1 无高亮 */
+    curSample = SAMPLE_MODELS.findIndex(s => s.url === cfg.url);
     buildSampleMenu();
     const name = cfg.name || cfg.url.split('/').pop() || cfg.url;
-    if (await loadUrlSample({ name, url: cfg.url })) return;      /* 载入成功，结束 */
+    if (await loadUrlSample({ name, url: cfg.url })) return;
   }
-  curSample = SAMPLE_MODELS.findIndex(s => s.builtin);            /* 回退三叶结并同步菜单高亮 */
+  curSample = SAMPLE_MODELS.findIndex(s => s.builtin);
   if (curSample < 0) curSample = 0;
   buildSampleMenu();
   loadBuiltinSample();
 })();
+
 
 /* ===== 双面渲染：接入 setModel 链路 ===== */
 
