@@ -118,6 +118,28 @@
     <label class="row"><span>模型亮度 <b id="mdl-bri-val">1.00×</b></span><input id="rng-mdl-bri" type="range" min="0" max="200" step="1" value="100"/></label>
     <label class="row hide" id="row-anim" style="margin-top:9px"><span>播放动画</span><span class="switch"><input id="chk-anim" type="checkbox" checked/><i></i></span></label>
   </div>
+<div class="sec">
+  <div class="sec-title">剖面</div>
+  <div class="row">
+    <span>模型剖切</span>
+    <label class="switch"><input type="checkbox" id="chk-clip" autocomplete="off"><i></i></label>
+  </div>
+  <div id="clip-ctrl" class="hide">
+    <div class="row">
+      <div class="seg" id="clip-axis-seg">
+        <button data-ax="x" class="active">X</button>
+        <button data-ax="y">Y</button>
+        <button data-ax="z">Z</button>
+      </div>
+      <button class="btn tog" id="btn-clip-flip">反向</button>
+    </div>
+    <div class="row">
+      <span>位置</span>
+      <input type="range" id="rng-clip" min="0" max="100" step="1" value="50">
+      <b id="clip-val">50%</b>
+    </div>
+  </div>
+</div>
   <div class="sec">
     <div class="sec-title">快捷键</div>
     <div class="keys">

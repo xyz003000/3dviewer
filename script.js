@@ -92,6 +92,11 @@ const modelPos0 = new THREE.Vector3(), modelQuat0 = new THREE.Quaternion();
 let mixer = null, animPlaying = true;
 let shadeMode = 'shaded';
 let gridOn = true, axesOn = true, outlineOn = false;
+/* 剖面（剖切）状态：默认关闭 */
+let clipOn = false, clipAxis = 'x', clipFlip = false, clipPos = 50;
+const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+const clipPlanes = [clipPlane]; /* 材质引用的固定数组，拖动滑块时自动生效 */
+
 let rotAxis = null, rotSpeed = 30;   // deg/s
 let modelBrightness = 1;             // 模型本身亮度（1 = 原始）
 
@@ -360,6 +365,9 @@ function setModel(object, name){
   applyShading(shadeMode);
   applyDoubleSide(object);   /* 按当前按钮状态投影到新模型（作用于 base 材质 origMaterial） */
   applyModelBrightness(modelBrightness);   /* 模型切换后沿用当前亮度滑块值 */
+  syncClipPlane();
+applyClipping();
+
   currentName = name;
   $('chip-file').textContent = name;
   $('chip-stats').innerHTML =
@@ -387,6 +395,42 @@ function applyModelBrightness(mult){
     }
   });
 }
+
+/* ================= 剖面（剖切） ================= */
+/* 根据轴/反向/滑块百分比，把裁剪平面摆到模型包围盒的对应位置（世界坐标） */
+function syncClipPlane(){
+  if (!model) return;
+  const min = modelBox.min[clipAxis];
+  const size = (modelBox.max[clipAxis] - min) || 1;
+  const pos = min + (clipPos / 100) * size;
+  clipPlane.normal.set(
+    clipAxis === 'x' ? 1 : 0,
+    clipAxis === 'y' ? 1 : 0,
+    clipAxis === 'z' ? 1 : 0
+  );
+  if (clipFlip) clipPlane.normal.negate();
+  clipPlane.constant = clipFlip ? pos : -pos;
+}
+/* 把裁剪平面应用到 / 从所有相关材质上移除 */
+function applyClipping(){
+  renderer.localClippingEnabled = clipOn; /* 关闭时完全恢复原有渲染路径 */
+  if (!model) return;
+  const planes = clipOn ? clipPlanes : null;
+  const setOn = m => {
+    if (!m || m.clippingPlanes === planes) return;
+    m.clippingPlanes = planes;
+    m.clipShadows = clipOn;
+    m.needsUpdate = true; /* 裁剪面数量 0↔1 变化需要重编译着色器 */
+  };
+  model.traverse(o => {
+    const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    mats.forEach(setOn);
+  });
+  /* 线框覆盖层、轮廓线、法线/线框模式用的共享材质也要跟随剖切，
+     否则实体被剖了、线框和轮廓线还是完整的一圈 */
+  [wireMat, normalMat, outlineMat].forEach(setOn);
+}
+
 
 /* ================= 模型旋转（绕世界 X/Y/Z 轴） ================= */
 const _rq = new THREE.Quaternion(), _raxis = new THREE.Vector3();
@@ -856,6 +900,31 @@ $('rng-mdl-bri').oninput = e => {
   applyModelBrightness(modelBrightness);
 };
 $('chk-anim').onchange = e => { animPlaying = e.target.checked; };
+
+/* 剖面（剖切）控件 */
+$('chk-clip').onchange = e => {
+  clipOn = e.target.checked;
+  $('clip-ctrl').classList.toggle('hide', !clipOn);
+  syncClipPlane();
+  applyClipping();
+};
+document.querySelectorAll('#clip-axis-seg button').forEach(b => b.onclick = () => {
+  clipAxis = b.dataset.ax;
+  document.querySelectorAll('#clip-axis-seg button').forEach(x => x.classList.toggle('active', x === b));
+  syncClipPlane();
+});
+$('btn-clip-flip').onclick = () => {
+  clipFlip = !clipFlip;
+  $('btn-clip-flip').classList.toggle('active', clipFlip);
+  syncClipPlane();
+};
+$('rng-clip').oninput = e => {
+  clipPos = parseInt(e.target.value, 10);
+  $('clip-val').textContent = clipPos + '%';
+  if (clipOn && model) syncClipPlane(); /* 只改平面数值，无需重编译材质，拖动流畅 */
+};
+
+
 $('chk-free-rot').onchange = e => setFreeRotate(e.target.checked);
 
 $('btn-fit').onclick = () => fitView(true);
@@ -1074,3 +1143,14 @@ $('chk-double-side').addEventListener('change', () => {
 
 /* 页面初始化时硬归位（写死 false，不依赖任何变量） */
 $('chk-double-side').checked = false;
+
+/* 防 F5 表单状态恢复造成的不一致（bfcache 前进/返回时状态本就一致，跳过） */
+addEventListener('pageshow', e => {
+  if (e.persisted) return;
+  clipOn = false;
+  $('chk-clip').checked = false;
+  $('clip-ctrl').classList.add('hide');
+  clipPos = 50;
+  $('rng-clip').value = 50;
+  $('clip-val').textContent = '50%';
+});
